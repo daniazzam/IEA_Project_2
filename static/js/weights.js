@@ -16,20 +16,20 @@ window.addEventListener('load', () => {
     }
 
     function showKNN(){
-        modelName.textContent = 'KNN'
+        modelName.textContent = 'CNN'
 
     }
 
     function showSVM(){
-        modelName.textContent = 'SVM'
+        modelName.textContent = 'ANN Features'
     }
 
     function showForest(){
-        modelName.textContent = 'Random Forest'
+        modelName.textContent = 'ANN Images'
     }
 
     function showSVMEnsemble(){
-        modelName.textContent = 'Sequential Ensemble'
+        modelName.textContent = 'Ensemble'
     }
 
     function showEnsemble(){

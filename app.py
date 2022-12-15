@@ -20,37 +20,11 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 ALLOWED_EXTENSIONS = set(['png', 'jpg', 'jpeg', 'gif'])
 
 
-CNNmodel = tf.keras.models.load_model('/Models/CNNmodel3.h5')
-ANNmodelImages = tf.keras.models.load_model('/Models/ANN_Images.h5')
-ANNmodelFeatures = tf.keras.models.load_model('/Models/ANN_Features.h5')
-Model_M_m = tf.keras.models.load_model('/Models/Model_M_m.h5')
-Model_9_g_q = tf.keras.models.load_model('/Models/Model_9_g_q.h5')
-
-
-
-def find_top_3(predictions_proba):
-    characters = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-    predictions = []
-
-    predictions_proba = [round(member, 2) for member in predictions_proba]
-
-    max_number = max(predictions_proba)
-    index1 = predictions_proba.index(max_number)
-    predictions.append(characters[index1])
-    predictions.append(predictions_proba[index1])
-    predictions_proba[index1] = 0
-
-    index2 = predictions_proba.index(max(predictions_proba))
-    predictions.append(characters[index2])
-    predictions.append(predictions_proba[index2])
-    predictions_proba[index2] = 0
-
-    index3 = predictions_proba.index(max(predictions_proba))
-    predictions.append(characters[index3])
-    predictions.append(predictions_proba[index3])
-    predictions_proba[index3] = 0
-
-    return predictions_proba, predictions
+CNNmodel = tf.keras.models.load_model('./Models/CNNmodel3.h5')
+ANNmodelImages = tf.keras.models.load_model('./Models/ANN_Images.h5')
+ANNmodelFeatures = tf.keras.models.load_model('./Models/ANN_Features.h5')
+Model_M_m = tf.keras.models.load_model('./Models/Model_M_m.h5')
+Model_9_g_q = tf.keras.models.load_model('./Models/Model_9_g_q.h5')
 
 
 def Top1(predictions_proba):
@@ -58,6 +32,7 @@ def Top1(predictions_proba):
     lea = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
     predictions=[]
 
+    # predictions_proba = pd.DataFrame(predictions_proba)
     index1 = predictions_proba.index(max(predictions_proba))
     predictions.append(lea[index1])
     predictions.append(predictions_proba[index1]) 
@@ -65,17 +40,18 @@ def Top1(predictions_proba):
 
     return predictions_proba, predictions
 
-def Ensemble(image, feature, img_feature):
+
+def Ensemble(image, feature):
     cnn_pred = CNNmodel.predict(image)
     ann_feature_pred = ANNmodelFeatures.predict(feature)
     ann_image_pred = ANNmodelImages.predict(img_feature)
 
-    final_y_proba = sum = [x + y for (x, y) in zip(cnn_pred, ann_feature_pred[0])]
+    final_y_proba = sum = [x + y for (x, y) in zip(cnn_pred, ann_feature_pred)]
     final_y_proba = sum = [x + y for (x, y) in zip(final_y_proba, ann_image_pred[0])]
 
-    predictions = [value / 3 for value in final_y_proba]
+    predictions = [value / 2 for value in final_y_proba]
     # predcitions = [round(member, 2) for member in final_y_proba]
-    predictions_proba, predictions= Top1(pred)
+    predictions_proba, predictions= Top1(predictions)
 
     if predictions[0]=='M' or predictions[0] == 'm':
         output = Model_M_m.predict(feature)
@@ -93,7 +69,7 @@ def Ensemble(image, feature, img_feature):
             return 'g'
         else:
             return 'q'
-
+    print('Hi'+str(predictions))
     return predictions[0]
 
 
@@ -120,30 +96,49 @@ def upload_image():
             cv2.imwrite(f'static/uploads/drawing/canvas{idx}.png', letter)
             featureList[f'canvas{idx}'] = getFeatures(f'static/uploads/drawing/canvas{idx}.png')
         predictions_list = []
-        if model == 'svm-ensemble':
+        if model == 'cnn':
             for letter in featureList:
                 data_dir = f'static/uploads/drawing/{letter}.png'
                 img = tf.keras.utils.load_img(data_dir,target_size = (28, 28))
                 img_array = tf.keras.utils.img_to_array(img)
                 img_array = tf.expand_dims(img_array,0)
-                features = featureList[letter]
-                image_feature = cv2.imread(data_dir)
-                predictions_list.append(Ensemble(img_array, features, image_feature))
-        elif model == 'svm':
+                predictions_proba, predictions= Top1(CNNmodel.predict(img_array)[0].tolist())
+                predictions_list.append(predictions[0])
+        elif model == 'ann-features':
             for letter in featureList:
-                pass
-                #y_new = model.predict()
-                #predictions_list.append(y_new)
-            y_new = svmModel.predict_proba(userProfileWhite)
-            _, probas = find_top_3(y_new.tolist()[0])
-        elif model == 'knn':
-            y_new = knnModel.predict_proba(userHistWhite)
-            _, probas = find_top_3(y_new.tolist()[0])
-        elif model == 'random-forest':
-            y_new = forestModel.predict_proba(userProfileWhite)
-            _, probas = find_top_3(y_new.tolist()[0])
+                data_dir = f'static/uploads/drawing/{letter}.png'
+                features = featureList[letter]
+                ann_feature_pred = ANNmodelFeatures.predict(features)
+                predictions_proba, predictions= Top1(ANNmodelFeatures.predict(features)[0].tolist())
+                predictions_list.append(predictions[0])
+        elif model == 'ann-images':
+           for letter in featureList:
+                data_dir = f'static/uploads/drawing/{letter}.png'
+                IMG = cv2.imread(data_dir)
+                IMG = cv2.cvtColor(IMG, cv2.COLOR_BGR2GRAY)
+                # image_feature = cv2.imread(data_dir)[0].flatten()
+                csvFile = {}
+                # for idx, bit in enumerate(image_feature):
+                #     if bit>0:
+                #         image_feature[idx] = 255
+                counter = 0
+                for row in IMG:
+                    for el in row:
+                        if el > 0:
+                            el = 255
+                        csvFile[f'Pixel {counter}'] = el
+                        counter += 1
+                ann_feature_pred = ANNmodelFeatures.predict(csvFile)
+                predictions_proba, predictions= Top1(ANNmodelImages.predict(csvFile)[0].tolist())
+                predictions_list.append(predictions[0])
         elif model == 'ensemble':
-            pass
+             for letter in featureList:
+                data_dir = f'static/uploads/drawing/{letter}.png'
+                img = tf.keras.utils.load_img(data_dir,target_size = (28, 28))
+                img_array = tf.keras.utils.img_to_array(img)
+                img_array = tf.expand_dims(img_array,0)
+                features = featureList[letter]
+                predictions_list.append(Ensemble(img_array, features))
         _, _, boundingRectInput = processUserImage('static/uploads/drawing/canvasImage.png')
         cv2.imwrite('static/uploads/canvasBox.png', boundingRectInput)
         return render_template('index.html', outputLetter=predictions_list, model=model, inputImage='static/uploads/canvasBox.png')
@@ -157,34 +152,56 @@ def upload_image():
     if file and allowed_file(file.filename):
         filename = 'img.png'
         file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-        model = request.form['model']
-        userHistWhite, userProfileWhite = getFeatures('static/uploads/img.png')
-        if model == 'svm-ensemble':
-            probas = SequentialModel2(userProfileWhite)
-        elif model == 'svm':
-            y_new = svmModel.predict_proba(userProfileWhite)
-            _, probas = find_top_3(y_new.tolist()[0])
-        elif model == 'knn':
-            y_new = knnModel.predict_proba(userHistWhite)
-            _, probas = find_top_3(y_new.tolist()[0])
-        elif model == 'random-forest':
-            y_new = forestModel.predict_proba(userProfileWhite)
-            _, probas = find_top_3(y_new.tolist()[0])
+        model = request.form['model'] 
+        letterList = segment('static/uploads/drawing/canvasImage.png')
+        featureList = {}
+        for idx, letter in enumerate(letterList):
+            cv2.imwrite(f'static/uploads/drawing/canvas{idx}.png', letter)
+            featureList[f'canvas{idx}'] = getFeatures(f'static/uploads/drawing/canvas{idx}.png')
+        predictions_list = []
+        if model == 'cnn':
+            for letter in featureList:
+                data_dir = f'static/uploads/drawing/{letter}.png'
+                img = tf.keras.utils.load_img(data_dir,target_size = (28, 28))
+                img_array = tf.keras.utils.img_to_array(img)
+                img_array = tf.expand_dims(img_array,0)
+                predictions_proba, predictions= Top1(CNNmodel.predict(img_array)[0].tolist())
+                predictions_list.append(predictions[0])
+        elif model == 'ann-features':
+            for letter in featureList:
+                data_dir = f'static/uploads/drawing/{letter}.png'
+                features = featureList[letter]
+                ann_feature_pred = ANNmodelFeatures.predict(features)
+                predictions_proba, predictions= Top1(ANNmodelFeatures.predict(features)[0].tolist())
+                predictions_list.append(predictions[0])
+        elif model == 'ann-images':
+           for letter in featureList:
+                data_dir = f'static/uploads/drawing/{letter}.png'
+                IMG = cv2.imread(data_dir)
+                IMG = cv2.cvtColor(IMG, cv2.COLOR_BGR2GRAY)
+                # image_feature = cv2.imread(data_dir)[0].flatten()
+                csvFile = {}
+                # for idx, bit in enumerate(image_feature):
+                #     if bit>0:
+                #         image_feature[idx] = 255
+                counter = 0
+                for row in IMG:
+                    for el in row:
+                        if el > 0:
+                            el = 255
+                        csvFile[f'Pixel {counter}'] = el
+                        counter += 1
+                ann_feature_pred = ANNmodelFeatures.predict(csvFile)
+                predictions_proba, predictions= Top1(ANNmodelImages.predict(csvFile)[0].tolist())
+                predictions_list.append(predictions[0])
         elif model == 'ensemble':
-            svmWeight = request.form['svm-weight']
-            knnWeight = request.form['knn-weight']
-            forestWeight = request.form['dt-weight']
-            if svmWeight == '':
-                svmWeight = 0
-            if knnWeight == '':
-                knnWeight = 0
-            if forestWeight == '':
-                forestWeight = 0
-            svmWeight = float(svmWeight); knnWeight = float(knnWeight); forestWeight = float(forestWeight)
-            if svmWeight + knnWeight + forestWeight != 1:
-                flash('Total weight should equal 1', 'error')
-                return redirect(request.url)
-            probas = Parallel_Ensemble(userProfileWhite, userHistWhite, svmModel, knnModel, forestModel, svmWeight, knnWeight, forestWeight)
+             for letter in featureList:
+                data_dir = f'static/uploads/drawing/{letter}.png'
+                img = tf.keras.utils.load_img(data_dir,target_size = (28, 28))
+                img_array = tf.keras.utils.img_to_array(img)
+                img_array = tf.expand_dims(img_array,0)
+                features = featureList[letter]
+                predictions_list.append(Ensemble(img_array, features))
         _, _, boundingRectInput = processUserImage('static/uploads/img.png')
         cv2.imwrite('static/uploads/uploadBox.png', boundingRectInput)
         return render_template('index.html', outputLetter=probas, model=model, inputImage='static/uploads/uploadBox.png')
